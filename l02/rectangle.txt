@@ -1,0 +1,9 @@
+c any line starting by the character 'c' is ignored
+c rectangle
+c the header indicates the number of vertices vs and the number of edges
+h 4 4
+c each edge is represented by two numbers when the range 0..vs-1
+0 1
+1 2
+2 3
+3 0
