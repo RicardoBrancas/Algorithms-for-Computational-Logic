@@ -1,0 +1,13 @@
+c Erdos-Renyi graph with 10 nodes and p = 0.25
+h 11 11
+0 2
+0 3
+0 7
+0 9
+2 3
+2 5
+3 4
+4 8
+5 9
+6 7
+6 8
