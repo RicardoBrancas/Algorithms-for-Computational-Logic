@@ -15,7 +15,7 @@ class JobFlowProblem:
         self.machines = m
         self.jobs = j
         self.tasks = [0 for i in range(m * j)]
-        self.max_timestep = 20
+        self.max_timestep = 200
 
 
     def __str__(self):
@@ -50,10 +50,11 @@ class JobFlowProblem:
 
 
     def solve(self):
+        print("Generating clauses...")
         jobs = range(self.jobs)
         machines = range(self.machines)
         times = range(self.max_timestep)
-
+        
         g = Glucose4()
         # DUAS TAREFAS NÃO SE PODEM SOBREPOR NA MESMA MAQUINA
         for j in jobs:
@@ -62,27 +63,8 @@ class JobFlowProblem:
                     for t in times:
                         for d in range(t, t + self.tasks[self.t_index(m, j)]):
                             for other_j in jobs:
-                                if self.tasks[self.t_index(m, other_j)] != 0:  # other task doesn't have duration 0
-                                    if other_j != j:
-                                        g.add_clause([-self.var_id(m, j, t), -self.var_id(m, other_j, d)])
-
-
-        # TODAS AS TAREFAS TÊM DE SER EXECUTADAS
-        for m in machines:
-            for j in jobs:
-                if self.tasks[self.t_index(m, j)] != 0:  # task doesn't have duration 0
-                    lst = []
-                    for t in times:
-                        if t + self.tasks[self.t_index(m, j)] < self.max_timestep:
-                            lst += [self.var_id(m, j, t)]
-
-                    cnf = CardEnc.equals(lits=lst, encoding=EncType.pairwise)
-                    g.append_formula(cnf.clauses)
-
-                else:  # task has duration 0. Don't execute
-                    for t in times:
-                        g.add_clause([-self.var_id(m, j, t)])
-
+                                if self.tasks[self.t_index(m, other_j)] != 0 and other_j != j:  # other task doesn't have duration 0
+                                    g.add_clause([-self.var_id(m, j, t), -self.var_id(m, other_j, d)])
 
         # TAREFAS SÃO SEQUENCIAIS
         for m in machines:
@@ -94,6 +76,23 @@ class JobFlowProblem:
                                 if self.tasks[self.t_index(other_m, j)] != 0:  #other task doesn't have duration 0
                                     g.add_clause([-self.var_id(m, j, t), -self.var_id(other_m, j, other_t)])
 
+        # TODAS AS TAREFAS TÊM DE SER EXECUTADAS
+        for m in machines:
+            for j in jobs:
+                if self.tasks[self.t_index(m, j)] != 0:  # task doesn't have duration 0
+                    lst = []
+                    for t in times:
+                        if t + self.tasks[self.t_index(m, j)] < self.max_timestep:
+                            lst += [self.var_id(m, j, t)]
+
+                    card_cnf = CardEnc.equals(lits=lst, top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=1)
+                    g.append_formula(card_cnf.clauses)
+
+                else:  # task has duration 0. Don't execute
+                    for t in times:
+                        g.add_clause([-self.var_id(m, j, t)])
+
+        print("Solving...")
         model = None
         sat = True
         t = self.max_timestep
@@ -103,7 +102,7 @@ class JobFlowProblem:
                 for j in range(self.jobs):
                     for t1 in range(t, self.max_timestep):
                         asmpt.append(-self.var_id(m, j, t1))
-
+            print("Running iteration...")
             sat = g.solve(asmpt)
             if sat:
                 model = g.get_model()
@@ -130,8 +129,9 @@ class JobFlowProblem:
 
         for var in model:
             m, j, t = self.id_var(abs(var))
-            if var > 0:
-                result[m][j] = t
+            if t < self.max_timestep and j < self.jobs and m < self.machines:
+                if var > 0:
+                    result[m][j] = t
 
         return result
 
