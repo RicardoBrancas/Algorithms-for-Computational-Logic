@@ -15,6 +15,7 @@ class JobFlowProblem:
         self.machines = m
         self.jobs = j
         self.tasks = np.zeros((m, j), dtype=int)
+        self.useless = []
 
 
     def __str__(self):
@@ -45,28 +46,28 @@ class JobFlowProblem:
 
 
     def greedy_span(self):
-        parts = sorted(self.tasks,key=lambda task: np.sum(task))
+        jobs = sorted(np.copy(self.tasks).T,key=lambda task: np.sum(task))
+        jobs.reverse()
         lst = [0 for i in range(self.machines)]
+        who_lst = [0 for i in range(self.machines)]
         count = 0
+
         while True:
+            if np.sum(jobs) + sum(lst) == 0:
+                return count
+
             count += 1
-
-            if np.sum(parts) + sum(lst) == 0:
-                break
-
             for i in range(len(lst)):
                 if lst[i] > 0:
                     lst[i] = max(0, lst[i]-1)
-                    continue
-                else:
-                    for part in parts:
-                        for j in range(len(part)):
-                            if lst[j] == 0:
-                                lst[j] = part[j]
-                                part[j] = 0
+                    jobs[who_lst[i]][i] = max(0, jobs[who_lst[i]][i]-1)
+                
+                for job_index in range(len(jobs)):
+                    if lst[i] == 0 and (jobs[job_index][i] > 0) and np.sum(jobs[job_index][:i]) == 0:
+                        lst[i] = jobs[job_index][i]
+                        who_lst[i] = job_index
 
-
-        return count + 1
+            #print(jobs, lst)
 
 
     def solve(self):
@@ -76,8 +77,21 @@ class JobFlowProblem:
         jobs = range(self.jobs)
         machines = range(self.machines)
         times = range(self.max_timestep)
-        
+
+
         g = Glucose4()
+        # TAREFAS SÃO SEQUENCIAIS
+        for m in machines:
+            for j in jobs:
+                if self.tasks[m, j] != 0:  # task doesn't have duration 0
+                    for t in times:
+                        self.useless += [(m,j,t)]
+                        for other_t in range(0, t + self.tasks[m, j]):
+                            for other_m in range(m + 1, self.machines):
+                                if self.tasks[other_m, j] != 0:  #other task doesn't have duration 0
+                                    g.add_clause([-self.var_id(m, j, t), -self.var_id(other_m, j, other_t)])
+        
+
         # DUAS TAREFAS NÃO SE PODEM SOBREPOR NA MESMA MAQUINA
         for m in machines:
             for t in times:
@@ -88,15 +102,7 @@ class JobFlowProblem:
                 card_cnf = CardEnc.atmost(lits=lits, top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=6)
                 g.append_formula(card_cnf.clauses)
 
-        # TAREFAS SÃO SEQUENCIAIS
-        for m in machines:
-            for j in jobs:
-                if self.tasks[m, j] != 0:  # task doesn't have duration 0
-                    for t in times:
-                        for other_t in range(0, t + self.tasks[m, j]):
-                            for other_m in range(m + 1, self.machines):
-                                if self.tasks[other_m, j] != 0:  #other task doesn't have duration 0
-                                    g.add_clause([-self.var_id(m, j, t), -self.var_id(other_m, j, other_t)])
+
 
         # TODAS AS TAREFAS TÊM DE SER EXECUTADAS
         for m in machines:
@@ -148,6 +154,10 @@ class JobFlowProblem:
 
         for var in model:
             m, j, t = self.id_var(abs(var))
+
+            if (m,j,t) not in self.useless:
+                continue
+
             if t < self.max_timestep and j < self.jobs and m < self.machines:
                 if var > 0:
                     result[m][j] = t
