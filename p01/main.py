@@ -4,7 +4,7 @@ from pysat.card import *
 import numpy as np
 import sys
 
-debug = True
+debug = False
 
 data = sys.stdin.readlines()
 
@@ -68,40 +68,20 @@ class JobFlowProblem:
                         lst[i] = jobs[job_index][i]
                         who_lst[i] = job_index
 
-            #print(jobs, lst)
-
 
     def solve(self):
+        if debug:
+            print("Calculating greedy solution...")
+
         self.min_timestep, self.max_timestep = self.greedy_span()
-        print(self.max_timestep)
-        print("Generating clauses...")
+        
+        if debug:
+            print("Bounds found:[", self.min_timestep, ",", self.max_timestep, "]")
+            print("Generating clauses...")
+
         jobs = range(self.jobs)
         machines = range(self.machines)
         times = range(self.max_timestep)
-        '''self.tasks = self.tasks.T
-        lst_machines = np.array([])
-        lst_times = np.array([])
-        els = []
-        for task in self.tasks:
-            els2 = []
-            for el in np.argwhere(task > 0).tolist():
-                els2 += [el][0]
-            els += [els2]
-        print(els)
-        
-        print()
-        els = []
-        for task in self.tasks:
-            els2 = []
-            for el in task[np.argwhere(task > 0)].tolist():
-                els2 += [el][0]
-            els += [els2]
-        print(els)
-
-        #np.reshape(lst_machines, ())
-
-        return'''
-
 
         g = Glucose4()
 
@@ -112,9 +92,9 @@ class JobFlowProblem:
                 lits = []
                 for t in times:
                     lits.append(self.var_id(m, j, t))
-                
-                #print(list(map(self.id_var, lits)), "=", self.tasks[m,j])
-                cnf = CardEnc.equals(lits=lits, bound=self.tasks[m,j], top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=4)
+                if debug: 
+                    print(list(map(self.id_var, lits)), "=", self.tasks[m,j])
+                cnf = CardEnc.equals(lits=lits, bound=self.tasks[m,j], top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=6)
                 g.append_formula(cnf.clauses)
         
 
@@ -124,11 +104,13 @@ class JobFlowProblem:
                 for t in range(0,self.max_timestep - 1):
                     for t1 in range(t+1, self.max_timestep):
                         g.add_clause([-self.var_id(m,j,t), self.var_id(m,j,t+1), -self.var_id(m,j,t1)])
-                        #print((m,j,t), 'and -', (m,j,t+1), "=> -", (m,j,t1))
+                        if debug:
+                            print((m,j,t), 'and -', (m,j,t+1), "=> -", (m,j,t1))
                 for t in range(1,self.max_timestep):
                     for t1 in range(0, t):
                         g.add_clause([self.var_id(m,j,t-1), -self.var_id(m,j,t), -self.var_id(m,j,t1)])
-                        #print('-', (m,j,t-1), 'and ', (m,j,t), "=> -", (m,j,t1))
+                        if debug:
+                            print('-', (m,j,t-1), 'and ', (m,j,t), "=> -", (m,j,t1))
 
 
 
@@ -142,7 +124,8 @@ class JobFlowProblem:
                                 if self.tasks[other_m, j] != 0:  #other task doesn't have duration 0
                                     if other_t < self.max_timestep:
                                         g.add_clause([-self.var_id(m, j, t), -self.var_id(other_m, j, other_t)])
-                                        #print((m,j,t), "=> -", (other_m, j, other_t))
+                                        if debug:
+                                            print((m,j,t), "=> -", (other_m, j, other_t))
         
 
         # DUAS TAREFAS NÃO SE PODEM SOBREPOR NA MESMA MAQUINA
@@ -152,12 +135,13 @@ class JobFlowProblem:
                 for j in jobs:
                     lits.append(self.var_id(m, j, t))
 
-                #print(list(map(self.id_var, lits)), "<=1")
+                if debug:
+                    print(list(map(self.id_var, lits)), "<=1")
                 cnf = CardEnc.atmost(lits=lits, top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=6)
                 g.append_formula(cnf.clauses)
 
 
-        print("Solving...")
+        #print("Solving...")
         model = None
         sat = True
         t_max = self.max_timestep
@@ -169,7 +153,9 @@ class JobFlowProblem:
                 for j in range(self.jobs):
                     for t1 in range(t, self.max_timestep):
                         asmpt.append(-self.var_id(m, j, t1))
-            print("Running iteration for t =", t)
+            if debug:
+                print("Running iteration for t =", t)
+
             sat = g.solve(asmpt)
             if sat:
                 model = g.get_model()
@@ -181,11 +167,13 @@ class JobFlowProblem:
                 break
         
         if model == None:
-            print("UNSAT")
+            if debug:
+                print("UNSAT")
             return
+        if debug:
+            self.print_model(model)
         
         result = self.parse_model(model)
-        self.print_model(model)
 
         print(self.makespan(result))
         print(self.jobs, self.machines)
@@ -207,8 +195,8 @@ class JobFlowProblem:
 
             m, j, t = self.id_var(abs(var))
 
-            if t < self.max_timestep and j < self.jobs and m < self.machines:
-                if var > 0:
+            if var > 0:
+                if result[m][j] == -1 or result[m][j] > t:
                     result[m][j] = t
 
         return result
@@ -218,7 +206,7 @@ class JobFlowProblem:
         max_t = 0
         for m in range(self.machines):
             for j in range(self.jobs):
-                max_t = max(max_t, parsed_model[m][j]+1)
+                max_t = max(max_t, parsed_model[m][j] + self.tasks[m,j])
         return max_t
 
 
