@@ -47,6 +47,7 @@ class JobFlowProblem:
 
     def greedy_span(self):
         jobs = sorted(np.copy(self.tasks).T,key=lambda task: np.sum(task))
+        minimum = np.sum(jobs[0])
         jobs.reverse()
         lst = [0 for i in range(self.machines)]
         who_lst = [0 for i in range(self.machines)]
@@ -54,7 +55,7 @@ class JobFlowProblem:
 
         while True:
             if np.sum(jobs) + sum(lst) == 0:
-                return count
+                return minimum, count
 
             count += 1
             for i in range(len(lst)):
@@ -71,25 +72,77 @@ class JobFlowProblem:
 
 
     def solve(self):
-        self.max_timestep = self.greedy_span()
+        self.min_timestep, self.max_timestep = self.greedy_span()
         print(self.max_timestep)
         print("Generating clauses...")
         jobs = range(self.jobs)
         machines = range(self.machines)
         times = range(self.max_timestep)
+        '''self.tasks = self.tasks.T
+        lst_machines = np.array([])
+        lst_times = np.array([])
+        els = []
+        for task in self.tasks:
+            els2 = []
+            for el in np.argwhere(task > 0).tolist():
+                els2 += [el][0]
+            els += [els2]
+        print(els)
+        
+        print()
+        els = []
+        for task in self.tasks:
+            els2 = []
+            for el in task[np.argwhere(task > 0)].tolist():
+                els2 += [el][0]
+            els += [els2]
+        print(els)
+
+        #np.reshape(lst_machines, ())
+
+        return'''
 
 
         g = Glucose4()
-        # TAREFAS SÃO SEQUENCIAIS
+
+
+        # UMA TAREFA DE DURAÇÃO K TEM DE SER EXECUTADA DURANTE K TIMESTEPS
         for m in machines:
             for j in jobs:
-                if self.tasks[m, j] != 0:  # task doesn't have duration 0
+                lits = []
+                for t in times:
+                    lits.append(self.var_id(m, j, t))
+                
+                #print(list(map(self.id_var, lits)), "=", self.tasks[m,j])
+                cnf = CardEnc.equals(lits=lits, bound=self.tasks[m,j], top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=4)
+                g.append_formula(cnf.clauses)
+        
+
+        # UMA TAREFA NÃO PODE SER INTERROMPIDA
+        for m in machines:
+            for j in jobs:
+                for t in range(0,self.max_timestep - 1):
+                    for t1 in range(t+1, self.max_timestep):
+                        g.add_clause([-self.var_id(m,j,t), self.var_id(m,j,t+1), -self.var_id(m,j,t1)])
+                        #print((m,j,t), 'and -', (m,j,t+1), "=> -", (m,j,t1))
+                for t in range(1,self.max_timestep):
+                    for t1 in range(0, t):
+                        g.add_clause([self.var_id(m,j,t-1), -self.var_id(m,j,t), -self.var_id(m,j,t1)])
+                        #print('-', (m,j,t-1), 'and ', (m,j,t), "=> -", (m,j,t1))
+
+
+
+        # TAREFAS SÃO EXECUTADAS POR ORDEM
+        for j in jobs:
+            for m in machines:
+                for other_m in range(m + 1, self.machines):
                     for t in times:
-                        self.useless += [(m,j,t)]
-                        for other_t in range(0, t + self.tasks[m, j]):
-                            for other_m in range(m + 1, self.machines):
+                        for other_t in range(0,t+1):
+                            if self.tasks[m, j] != 0:  # task doesn't have duration 0
                                 if self.tasks[other_m, j] != 0:  #other task doesn't have duration 0
-                                    g.add_clause([-self.var_id(m, j, t), -self.var_id(other_m, j, other_t)])
+                                    if other_t < self.max_timestep:
+                                        g.add_clause([-self.var_id(m, j, t), -self.var_id(other_m, j, other_t)])
+                                        #print((m,j,t), "=> -", (other_m, j, other_t))
         
 
         # DUAS TAREFAS NÃO SE PODEM SOBREPOR NA MESMA MAQUINA
@@ -99,44 +152,40 @@ class JobFlowProblem:
                 for j in jobs:
                     lits.append(self.var_id(m, j, t))
 
-                card_cnf = CardEnc.atmost(lits=lits, top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=6)
-                g.append_formula(card_cnf.clauses)
+                #print(list(map(self.id_var, lits)), "<=1")
+                cnf = CardEnc.atmost(lits=lits, top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=6)
+                g.append_formula(cnf.clauses)
 
-
-
-        # TODAS AS TAREFAS TÊM DE SER EXECUTADAS
-        for m in machines:
-            for j in jobs:
-                if self.tasks[m, j] != 0:  # task doesn't have duration 0
-                    lst = []
-                    for t in times:
-                        if t + self.tasks[m, j] < self.max_timestep:
-                            lst += [self.var_id(m, j, t)]
-
-                    card_cnf = CardEnc.equals(lits=lst, top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=6)
-                    g.append_formula(card_cnf.clauses)
-
-                else:  # task has duration 0. Don't execute
-                    for t in times:
-                        g.add_clause([-self.var_id(m, j, t)])
 
         print("Solving...")
         model = None
         sat = True
-        t = self.max_timestep
-        while sat and t >= 0:
+        t_max = self.max_timestep
+        t_min = self.min_timestep
+        while True:
+            t = int(np.floor((t_max + t_min) / 2))
             asmpt = []
             for m in range(self.machines):
                 for j in range(self.jobs):
                     for t1 in range(t, self.max_timestep):
                         asmpt.append(-self.var_id(m, j, t1))
-            print("Running iteration...")
+            print("Running iteration for t =", t)
             sat = g.solve(asmpt)
             if sat:
                 model = g.get_model()
-                t = min(self.makespan(self.parse_model(model)) - 1, t) - 1
+                t_max = t
+            else:
+                t_min = t
 
+            if abs(t_min - t_max) <= 1:
+                break
+        
+        if model == None:
+            print("UNSAT")
+            return
+        
         result = self.parse_model(model)
+        self.print_model(model)
 
         print(self.makespan(result))
         print(self.jobs, self.machines)
@@ -151,12 +200,12 @@ class JobFlowProblem:
 
     def parse_model(self, model):
         result = np.full((self.machines, self.jobs), -1, dtype=int)
-
+        
         for var in model:
-            m, j, t = self.id_var(abs(var))
-
-            if (m,j,t) not in self.useless:
+            if abs(var) > self.var_id(self.machines-1,self.jobs-1,self.max_timestep):
                 continue
+
+            m, j, t = self.id_var(abs(var))
 
             if t < self.max_timestep and j < self.jobs and m < self.machines:
                 if var > 0:
@@ -169,7 +218,7 @@ class JobFlowProblem:
         max_t = 0
         for m in range(self.machines):
             for j in range(self.jobs):
-                max_t = max(max_t, parsed_model[m][j] + self.tasks[m, j])
+                max_t = max(max_t, parsed_model[m][j]+1)
         return max_t
 
 
@@ -181,26 +230,26 @@ class JobFlowProblem:
         out = np.zeros((self.machines, self.max_timestep), dtype=int)
 
         for var in model:
-            sign = var > 0
+            if abs(var) >= self.var_id(self.machines-1,self.jobs-1,self.max_timestep):
+                continue
 
+            sign = var > 0
             m, j, t = self.id_var(abs(var))
             if sign:
                 out[m][t] = j + 1
-                for t1 in range(t, t + self.tasks[m, j]):
-                    out[m][t1] = j + 1
 
         for m in range(self.machines):
-            print("m" + '{0:01d}'.format(m + 1) + " ", end='')
+            print("m" + '{0:02d}'.format(m + 1) + " ", end='')
             for t in range(self.max_timestep):
                 if out[m][t] != 0:
-                    print('j' + str(out[m][t]), end=' ')
+                    print('j' + '{0:02d}'.format(out[m][t]), end=' ')
                 else:
-                    print("   ", end='')
+                    print("    ", end='')
             print()
 
-        print("t  ", end='')
+        print("t   ", end='')
         for t in range(self.max_timestep):
-            print('{0:02d} '.format(t), end='')
+            print('{0:03d} '.format(t), end='')
         print()
 
 
