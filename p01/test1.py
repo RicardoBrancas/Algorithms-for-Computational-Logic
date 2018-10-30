@@ -3,6 +3,7 @@
 import argparse
 import subprocess
 from time import sleep
+import time
 
 parser = argparse.ArgumentParser(description='Test jfp solver.')
 parser.add_argument('start', metavar='START', type=int)
@@ -20,21 +21,13 @@ for i in range(args.start, args.end + 1):
         file.write(problem.decode('ascii'))
 
     mainp = subprocess.Popen('./main.py', shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, restore_signals=False)
-    googlep = subprocess.Popen('./google.py', shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, restore_signals=False)
-
+    
+    start = time.time()
     main_out, _ = mainp.communicate(input=problem)
-    google_out, _ = googlep.communicate(input=problem)
+    end = time.time()
 
     main_out = main_out.decode('ascii')
-    google_out = google_out.decode('ascii')
     
-    if main_out.split('\n')[0] != google_out.split('\n')[0]:
-        print("\tSolutions don't match")
-        print("\t\tmain:\t", main_out.split('\n')[0])
-        print("\t\tgoogle:\t", google_out.split('\n')[0])
-    else:
-        print("\tSolutions match!")
-        print("\t\tmain:\t", main_out.split('\n')[0])
-        print("\t\tgoogle:\t", google_out.split('\n')[0])
-    
+    print("\t\tmain:\t", main_out.split('\n')[0])
+    print("\t\ttook", end - start)
     

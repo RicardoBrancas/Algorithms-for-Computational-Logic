@@ -4,18 +4,18 @@ from pysat.card import *
 import numpy as np
 import sys
 
-debug = False
-
-data = sys.stdin.readlines()
+debug = True
+printClauses = False
 
 
 class JobFlowProblem:
 
-    def __init__(self, m, j):
+    def __init__(self, m, j, tasks):
         self.machines = m
         self.jobs = j
-        self.tasks = np.zeros((m, j), dtype=int)
-        self.useless = []
+        self.tasks = tasks
+        self.min_timestep, self.max_timestep = self.greedy_span()
+        self.top = self.var_id(self.machines-1, self.jobs-1, self.max_timestep) + 1
 
 
     def __str__(self):
@@ -25,10 +25,6 @@ class JobFlowProblem:
                 sm += " " + str(self.tasks[i, j])
             sm += "\n"
         return sm
-
-
-    def set_task(self, m, j, d):
-        self.tasks[m, j] = d
 
 
     def var_id(self, m, job, time):
@@ -45,16 +41,29 @@ class JobFlowProblem:
         return m, j, t
 
 
+    def update_top(self, cnf):
+        max_lit = 0
+        for clause in cnf.clauses:
+            for lit in clause:
+                max_lit = max(max_lit, abs(lit))
+        self.top = max(self.top, max_lit)
+
+
     def greedy_span(self):
+        if debug:
+            print("Computing greedy solution...")
+
         jobs = sorted(np.copy(self.tasks).T,key=lambda task: np.sum(task))
-        minimum = np.sum(jobs[0])
         jobs.reverse()
+        minimum = max(np.sum(jobs[0]), np.max(np.sum(jobs, axis=0)))
         lst = [0 for i in range(self.machines)]
         who_lst = [0 for i in range(self.machines)]
         count = 0
 
         while True:
             if np.sum(jobs) + sum(lst) == 0:
+                if debug:
+                    print("Bounds found: [", minimum, ",", count, "]")
                 return minimum, count
 
             count += 1
@@ -68,108 +77,42 @@ class JobFlowProblem:
                         lst[i] = jobs[job_index][i]
                         who_lst[i] = job_index
 
+    def solve_bin_search(self):
+        formula = self.formula()
 
-    def solve(self):
         if debug:
-            print("Calculating greedy solution...")
+            print("Solving...")
 
-        self.min_timestep, self.max_timestep = self.greedy_span()
+        g = Glucose4(incr=True)
+        g.append_formula(formula)
         
-        if debug:
-            print("Bounds found:[", self.min_timestep, ",", self.max_timestep, "]")
-            print("Generating clauses...")
-
-        jobs = range(self.jobs)
-        machines = range(self.machines)
-        times = range(self.max_timestep)
-
-        g = Glucose4()
-
-
-        # UMA TAREFA DE DURAÇÃO K TEM DE SER EXECUTADA DURANTE K TIMESTEPS
-        for m in machines:
-            for j in jobs:
-                lits = []
-                for t in times:
-                    lits.append(self.var_id(m, j, t))
-                if debug: 
-                    print(list(map(self.id_var, lits)), "=", self.tasks[m,j])
-                cnf = CardEnc.equals(lits=lits, bound=self.tasks[m,j], top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=6)
-                g.append_formula(cnf.clauses)
-        
-
-        # UMA TAREFA NÃO PODE SER INTERROMPIDA
-        for m in machines:
-            for j in jobs:
-                for t in range(0,self.max_timestep - 1):
-                    for t1 in range(t+1, self.max_timestep):
-                        g.add_clause([-self.var_id(m,j,t), self.var_id(m,j,t+1), -self.var_id(m,j,t1)])
-                        if debug:
-                            print((m,j,t), 'and -', (m,j,t+1), "=> -", (m,j,t1))
-                for t in range(1,self.max_timestep):
-                    for t1 in range(0, t):
-                        g.add_clause([self.var_id(m,j,t-1), -self.var_id(m,j,t), -self.var_id(m,j,t1)])
-                        if debug:
-                            print('-', (m,j,t-1), 'and ', (m,j,t), "=> -", (m,j,t1))
-
-
-
-        # TAREFAS SÃO EXECUTADAS POR ORDEM
-        for j in jobs:
-            for m in machines:
-                for other_m in range(m + 1, self.machines):
-                    for t in times:
-                        for other_t in range(0,t+1):
-                            if self.tasks[m, j] != 0:  # task doesn't have duration 0
-                                if self.tasks[other_m, j] != 0:  #other task doesn't have duration 0
-                                    if other_t < self.max_timestep:
-                                        g.add_clause([-self.var_id(m, j, t), -self.var_id(other_m, j, other_t)])
-                                        if debug:
-                                            print((m,j,t), "=> -", (other_m, j, other_t))
-        
-
-        # DUAS TAREFAS NÃO SE PODEM SOBREPOR NA MESMA MAQUINA
-        for m in machines:
-            for t in times:
-                lits = []
-                for j in jobs:
-                    lits.append(self.var_id(m, j, t))
-
-                if debug:
-                    print(list(map(self.id_var, lits)), "<=1")
-                cnf = CardEnc.atmost(lits=lits, top_id=max(self.var_id(self.machines-1,self.jobs-1,self.max_timestep), g.nof_vars()), encoding=6)
-                g.append_formula(cnf.clauses)
-
-
-        #print("Solving...")
-        model = None
-        sat = True
-        t_max = self.max_timestep
         t_min = self.min_timestep
+        t_max = self.max_timestep
+        model = None
         while True:
-            t = int(np.floor((t_max + t_min) / 2))
-            asmpt = []
-            for m in range(self.machines):
+            t = (t_min + t_max) // 2
+            if debug:
+                print("Solving for t =", t, ". With t_min =", t_min, "and t_max =", t_max)
+
+            assumptions = []
+            append = assumptions.append
+            for t1 in range(t, self.max_timestep):
                 for j in range(self.jobs):
-                    for t1 in range(t, self.max_timestep):
-                        asmpt.append(-self.var_id(m, j, t1))
-            if debug:
-                print("Running iteration for t =", t)
+                    for m in range(self.machines):
+                        append(-self.var_id(m,j,t1))
 
-            sat = g.solve(asmpt)
-            if sat:
+            if g.solve(assumptions):
                 model = g.get_model()
-                t_max = t
+                t_max = t - 1
             else:
-                t_min = t
-
-            if abs(t_min - t_max) <= 1:
+                t_min = t + 1
+            
+            if t_max - t_min < 0:
                 break
-        
+
         if model == None:
-            if debug:
-                print("UNSAT")
-            return
+            print("UNSAT")
+
         if debug:
             self.print_model(model)
         
@@ -186,17 +129,92 @@ class JobFlowProblem:
             print()
 
 
+
+    def formula(self):
+        if debug:
+            print("Generating clauses...")
+
+        jobs = range(self.jobs)
+        machines = range(self.machines)
+        times = range(self.max_timestep)
+        times_minus_last = range(self.max_timestep - 1)
+        
+        formula = []
+        f_append = formula.append
+
+        
+        for m in machines:
+
+            # DUAS TAREFAS NÃO SE PODEM SOBREPOR NA MESMA MAQUINA
+
+            for t in times:
+                lits = []
+                append = lits.append
+                for j in jobs:
+                    append(self.var_id(m, j, t))
+
+                if debug and printClauses:
+                    print(list(map(self.id_var, lits)), "<=1")
+                cnf = CardEnc.atmost(lits=lits, top_id=self.top, encoding=EncType.cardnetwrk)
+                self.update_top(cnf)
+                formula += cnf.clauses
+
+            for j in jobs:
+
+                # TODAS AS TAREFAS DE DURAÇÃO NÃO NULA TÊM DE SER EXECUTADAS
+
+                if self.tasks[m,j] != 0:
+                    lits = []
+                    append = lits.append
+                    for t in times:
+                        append(self.var_id(m, j, t))
+
+                    if debug and printClauses: 
+                        print(list(map(self.id_var, lits)))
+
+                    f_append(lits)
+
+                # UMA TAREFA NÃO PODE SER INTERROMPIDA
+
+                for d in range(1, self.tasks[m,j]): #caso especial do primeiro timestep
+                    if d < self.max_timestep:
+                        f_append([-self.var_id(m,j,0), self.var_id(m,j,d)])
+
+                        if debug and printClauses:
+                            print((m,j,0), '=>', (m,j,d))
+
+                for t in range(1,self.max_timestep):
+                    for d in range(t+1, t + self.tasks[m,j]):
+                        if d < self.max_timestep:
+                            f_append([self.var_id(m,j,t-1), -self.var_id(m,j,t), self.var_id(m,j,d)])
+
+                            if debug and printClauses:
+                                print('-', (m,j,t-1), 'and', (m,j,t), '=>', (m,j,d))
+
+                # TAREFAS SÃO EXECUTADAS POR ORDEM
+
+                for other_m in range(m + 1, self.machines):
+                    for t in times_minus_last:
+                        for other_t in range(0,t+1):
+                            if self.tasks[m, j] != 0 and self.tasks[other_m, j] != 0:  #tasks don't have duration 0
+                                f_append([-self.var_id(m, j, t), -self.var_id(other_m, j, other_t)])
+                                if debug and printClauses:
+                                    print((m,j,t), "=> -", (other_m, j, other_t))
+
+        return formula
+        
+
     def parse_model(self, model):
         result = np.full((self.machines, self.jobs), -1, dtype=int)
         
         for var in model:
-            if abs(var) > self.var_id(self.machines-1,self.jobs-1,self.max_timestep):
-                continue
-
-            m, j, t = self.id_var(abs(var))
-
             if var > 0:
-                if result[m][j] == -1 or result[m][j] > t:
+                if abs(var) > self.var_id(self.machines-1,self.jobs-1,self.max_timestep):
+                    continue
+
+                m, j, t = self.id_var(abs(var))
+
+                if result[m][j] == -1 or t < result[m][j]:
                     result[m][j] = t
 
         return result
@@ -211,19 +229,14 @@ class JobFlowProblem:
 
 
     def print_model(self, model):
-        if not model:
-            print("No solution!")
-            return
-
         out = np.zeros((self.machines, self.max_timestep), dtype=int)
 
         for var in model:
-            if abs(var) >= self.var_id(self.machines-1,self.jobs-1,self.max_timestep):
-                continue
+            if var > 0:
+                if abs(var) > self.var_id(self.machines-1,self.jobs-1,self.max_timestep):
+                    continue
 
-            sign = var > 0
-            m, j, t = self.id_var(abs(var))
-            if sign:
+                m, j, t = self.id_var(abs(var))
                 out[m][t] = j + 1
 
         for m in range(self.machines):
@@ -241,16 +254,18 @@ class JobFlowProblem:
         print()
 
 
-n, m = map(int, data[0].split())
+data = sys.stdin.readlines()
 
-problem = JobFlowProblem(m, n)
+j, m = map(int, data[0].split())
+tasks = np.zeros((m, j), dtype=int)
 
-for job in range(0, n):
+for job in range(0, j):
     parts = data[job + 1].split()
     k = int(parts[0])
 
     for i in range(0, k):
         machine, duration = map(int, parts[i + 1].split(":"))
-        problem.set_task(machine - 1, job, duration)
+        tasks[machine - 1, job] = duration
 
-problem.solve()
+problem = JobFlowProblem(m, j, tasks)
+problem.solve_bin_search()
