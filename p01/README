@@ -1,0 +1,45 @@
+/******************************************************************************/
+/*                       Primeiro Projeto da UC de ALC                        */
+/*                  Job-Flow Scheduling Problem with MaxSAT                   */
+/******************************************************************************/
+Grupo 1
+81620 Daniel Ramos
+83557 Ricardo Brancas
+
+/******************************************************************************/
+/*                               Como executar                                */
+/******************************************************************************/
+
+O executável é o ficheiro main.py (Python 3) e pode ser chamado diretamente.
+As dependênicas são o PySAT e o NumPy.
+
+Os problemas são resolvidos por default usando pesquisa binária, mas é possível
+utilizar pesquisa linear UNSAT-SAT, através da flag '-m unsatsat'.
+É ainda possível obter informação sobre o que está a acontecer utilizando '-v' 
+ou '-vv'.
+
+Para ver todas as opções utilizar '-h'.
+
+/******************************************************************************/
+/*                              A Nossa Solução                               */
+/******************************************************************************/
+
+Para resolver o problema, criamos uma formulação SAT que é depois minimizada
+através de MaxSAT.
+
+As nossas variáveis são do tipo X[m,j,t], em que m é o númerero de uma máquina,
+j é o número de um job, e t é um instante.
+
+Para calcular o t máximo, estamos a computar uma solução greedy do problema.
+
+As cláusulas que geramos dividem-se em quatro grupos:
+
+ - Duas tarefas não podem ser executadas ao mesmo tempo na mesma máquina;
+
+ - Todas as tarefas (de duração não 0) têm de ser executadas (durante pelo
+   menos um instante);
+
+ - Uma tarefa, ao acontecer, tem de acontecer durante d instantes consecutivos;
+
+ - As tarefas têm de ser executadas por ordem, ou seja, X[m,j,t] só pode ser
+   verdade se X[m-1,j,0:t-1] for verdade.
