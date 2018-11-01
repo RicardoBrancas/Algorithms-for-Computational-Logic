@@ -1,10 +1,11 @@
 #!/bin/python3
+import argparse
 from pysat.solvers import Glucose4
 from pysat.card import *
 import numpy as np
 import sys
 
-debug = True
+debug = False
 printClauses = False
 
 
@@ -53,7 +54,7 @@ class JobFlowProblem:
         if debug:
             print("Computing greedy solution...")
 
-        jobs = sorted(np.copy(self.tasks).T,key=lambda task: np.sum(task))
+        jobs = sorted(np.copy(self.tasks).T, key = lambda task: np.sum(task))
         jobs.reverse()
         minimum = max(np.sum(jobs[0]), np.max(np.sum(jobs, axis=0)))
         lst = [0 for i in range(self.machines)]
@@ -77,14 +78,37 @@ class JobFlowProblem:
                         lst[i] = jobs[job_index][i]
                         who_lst[i] = job_index
 
+
+    def output(self, model):
+        if model == None:
+            print("UNSAT")
+
+        if debug and printClauses:
+            self.print_model(model)
+        
+        result = self.parse_model(model)
+
+        print(self.makespan(result))
+        print(self.jobs, self.machines)
+
+        for j in range(self.jobs):
+            print((result[:, j] >= 0).sum(), end=' ')
+            for m in range(self.machines):
+                if result[m][j] != -1:
+                    print(str(m + 1) + ':' + str(result[m][j]), end=' ')
+            print()
+
+
     def solve_bin_search(self):
         formula = self.formula()
 
-        if debug:
-            print("Solving...")
-
         g = Glucose4(incr=True)
         g.append_formula(formula)
+
+        if debug:
+            print("Solving...")
+            print(g.nof_clauses(), "clauses")
+            print(g.nof_vars(), "variables")
         
         t_min = self.min_timestep
         t_max = self.max_timestep
@@ -109,25 +133,41 @@ class JobFlowProblem:
             
             if t_max - t_min < 0:
                 break
+        
+        self.output(model)
 
-        if model == None:
-            print("UNSAT")
+       
+    def solve_unsatsat(self):
+        formula = self.formula()
+        
+        g = Glucose4(incr=True)
+        g.append_formula(formula)
 
         if debug:
-            self.print_model(model)
+            print("Solving...")
+            print(g.nof_clauses(), "clauses")
+            print(g.nof_vars(), "variables")
+
+        model = None
+        t = self.min_timestep
+        while t <= self.max_timestep:
+            if debug:
+                print("Solving for t =", t)
+
+            assumptions = []
+            append = assumptions.append
+            for t1 in range(t, self.max_timestep):
+                for j in range(self.jobs):
+                    for m in range(self.machines):
+                        append(-self.var_id(m,j,t1))
+
+            if g.solve(assumptions):
+                model = g.get_model()
+                break
+
+            t += 1
         
-        result = self.parse_model(model)
-
-        print(self.makespan(result))
-        print(self.jobs, self.machines)
-
-        for j in range(self.jobs):
-            print((result[:, j] >= 0).sum(), end=' ')
-            for m in range(self.machines):
-                if result[m][j] != -1:
-                    print(str(m + 1) + ':' + str(result[m][j]), end=' ')
-            print()
-
+        self.output(model)
 
 
     def formula(self):
@@ -141,7 +181,6 @@ class JobFlowProblem:
         
         formula = []
         f_append = formula.append
-
         
         for m in machines:
 
@@ -254,6 +293,16 @@ class JobFlowProblem:
         print()
 
 
+parser = argparse.ArgumentParser(description='A SAT based solver for the Job Flow Scheduling Problem.')
+parser.add_argument('--verbose', '-v', action='count')
+parser.add_argument('--method', '-m', choices=['binary', 'unsatsat'], default='binary')
+
+args = parser.parse_args()
+
+if args.verbose:
+    debug = args.verbose >= 1
+    printClauses = args.verbose >= 2
+
 data = sys.stdin.readlines()
 
 j, m = map(int, data[0].split())
@@ -268,4 +317,9 @@ for job in range(0, j):
         tasks[machine - 1, job] = duration
 
 problem = JobFlowProblem(m, j, tasks)
-problem.solve_bin_search()
+
+if args.method == 'binary':
+    problem.solve_bin_search()
+
+elif args.method == 'unsatsat':
+    problem.solve_unsatsat()
