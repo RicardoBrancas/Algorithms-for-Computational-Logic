@@ -114,8 +114,9 @@ class JobFlowProblem:
         
         for j in range(self.jobs):
             m = 0
-            while self.tasks[m,j] == 0:
+            while m < self.machines and self.tasks[m,j] == 0:
                 m += 1
+
             if m >= self.machines:
                 continue
 
