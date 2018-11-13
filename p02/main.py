@@ -87,23 +87,48 @@ class JobFlowProblem:
             for j in range(self.jobs):
                 variables[m].append(Int('t' + str(j+1) + ',' + str(m+1)))
 
-        for m in range(self.machines - 1):
-            for j in range(self.jobs):
-                s.add(variables[m][j] + int(self.tasks[m, j]) <= variables[m + 1][j])
+        for j in range(self.jobs):
+            for m in range(self.machines - 1): 
+                while self.tasks[m, j] == 0:
+                    m += 1
+                    if m >= self.machines - 1:
+                        break
+                
+                if m >= self.machines - 1:
+                    break
+
+                m2 = m + 1
+                while self.tasks[m2, j] == 0:
+                    m2 += 1
+                    if m2 > self.machines - 1:
+                        break
+
+                if m2 > self.machines - 1:
+                    break
+
+                s.add(variables[m][j] + int(self.tasks[m, j]) <= variables[m2][j])
 
                 if debug and printClauses:
                     print(variables[m][j] + int(self.tasks[m, j]), '<=', variables[m + 1][j])
 
         
         for j in range(self.jobs):
-            s.add(variables[0][j] >= 0)
+            m = 0
+            while self.tasks[m,j] == 0:
+                m += 1
+            if m >= self.machines:
+                continue
+
+            s.add(variables[m][j] >= 0)
             if debug and printClauses:
-                print(variables[0][j], '>= 0')
+                print(variables[m][j], '>= 0')
 
 
         for m in range(self.machines):
             for j in range(self.jobs):
                 for other_j in range(j+1, self.jobs):
+                    if self.tasks[m,j] == 0 or self.tasks[m,other_j] == 0:
+                        continue
                     s.add(Or(variables[m][j] + int(self.tasks[m,j]) <= variables[m][other_j], variables[m][other_j] + int(self.tasks[m,other_j]) <= variables[m][j]))
 
                     if debug and printClauses:
@@ -113,13 +138,13 @@ class JobFlowProblem:
         for m in range(self.machines):
             for j in range(self.jobs):
                 s.add(variables[m][j] + int(self.tasks[m,j]) <= c)
-                print(variables[m][j] + int(self.tasks[m,j]) <= c)
+                if debug and printClauses:
+                    print(variables[m][j] + int(self.tasks[m,j]) <= c)
 
         s.minimize(c)
 
         s.check()
         model = s.model()
-        print(model)
 
         self.parse_model(model)
         self.output(model)
@@ -131,11 +156,10 @@ class JobFlowProblem:
         if model == None:
             print("UNSAT")
 
-        if debug and printClauses:
-            #self.print_model(model)
-            pass
-        
         result = self.parse_model(model)
+
+        if debug and printClauses:
+            self.print_model(result)
 
         print(self.makespan(result))
         print(self.jobs, self.machines)
@@ -143,7 +167,7 @@ class JobFlowProblem:
         for j in range(self.jobs):
             print((result[:, j] >= 0).sum(), end=' ')
             for m in range(self.machines):
-                if result[m][j] != -1:
+                if self.tasks[m,j] != 0 and result[m][j] != -1:
                     print(str(m + 1) + ':' + str(result[m][j]), end=' ')
             print()
 
@@ -158,7 +182,7 @@ class JobFlowProblem:
             if self.tasks[m-1, j-1] != 0:
                 result[m-1][j-1] = model[var].as_long()
             else:
-                result[m-1][j-1] = 0
+                result[m-1][j-1] = -1
 
         return result
 
@@ -171,16 +195,13 @@ class JobFlowProblem:
         return max_t
 
 
-    def print_model(self, model):
+    def print_model(self, parsed_model):
         out = np.zeros((self.machines, self.max_timestep), dtype=int)
 
-        for var in model:
-            if var > 0:
-                if abs(var) > self.var_id(self.machines-1,self.jobs-1,self.max_timestep):
-                    continue
-
-                m, j, t = self.id_var(abs(var))
-                out[m][t] = j + 1
+        for m in range(self.machines):
+            for j in range(self.jobs):
+                for t in range(parsed_model[m][j], parsed_model[m][j] + self.tasks[m][j]):
+                    out[m][t] = j + 1
 
         for m in range(self.machines):
             print("m" + '{0:02d}'.format(m + 1) + " ", end='')
@@ -199,7 +220,6 @@ class JobFlowProblem:
 
 parser = argparse.ArgumentParser(description='A SAT based solver for the Job Flow Scheduling Problem.')
 parser.add_argument('--verbose', '-v', action='count')
-parser.add_argument('--method', '-m', choices=['binary', 'unsatsat'], default='binary')
 
 args = parser.parse_args()
 
