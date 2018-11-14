@@ -78,41 +78,41 @@ class JobFlowProblem:
                         who_lst[i] = job_index
     
     def generate_formula(self):
+        if debug:
+            print("Generating formulation...")
+
         variables = []
 
         s = Optimize()
-    
+        s_add = s.add
+   
+        # CREATE VARIABLES
         for m in range(self.machines):
             variables.append([])
             for j in range(self.jobs):
                 variables[m].append(Int('t' + str(j+1) + ',' + str(m+1)))
-
+        
         for j in range(self.jobs):
+
+            # AS TAREFAS DE UM JOB TÊM DE SER EXECUTADAS POR ORDEM
             for m in range(self.machines - 1): 
-                while self.tasks[m, j] == 0:
+                while m < self.machines and self.tasks[m, j] == 0:
                     m += 1
-                    if m >= self.machines - 1:
-                        break
-                
                 if m >= self.machines - 1:
                     break
 
-                m2 = m + 1
-                while self.tasks[m2, j] == 0:
-                    m2 += 1
-                    if m2 > self.machines - 1:
-                        break
-
-                if m2 > self.machines - 1:
+                other_m = m + 1
+                while other_m < self.machines and self.tasks[other_m, j] == 0:
+                    other_m += 1
+                if other_m >= self.machines:
                     break
 
-                s.add(variables[m][j] + int(self.tasks[m, j]) <= variables[m2][j])
+                s_add(variables[m][j] + int(self.tasks[m, j]) <= variables[other_m][j])
 
                 if debug and printClauses:
                     print(variables[m][j] + int(self.tasks[m, j]), '<=', variables[m + 1][j])
 
-        
-        for j in range(self.jobs):
+            # OS TEMPOS TẼM DE SER POSITIVOS 
             m = 0
             while m < self.machines and self.tasks[m,j] == 0:
                 m += 1
@@ -120,37 +120,51 @@ class JobFlowProblem:
             if m >= self.machines:
                 continue
 
-            s.add(variables[m][j] >= 0)
+            s_add(variables[m][j] >= 0)
             if debug and printClauses:
                 print(variables[m][j], '>= 0')
 
-
-        for m in range(self.machines):
-            for j in range(self.jobs):
+            # PARA CADA PARA DE TAREFAS OU UMA ACONTECE ANTES OU A OUTRA
+            for m in range(self.machines):
                 for other_j in range(j+1, self.jobs):
                     if self.tasks[m,j] == 0 or self.tasks[m,other_j] == 0:
                         continue
-                    s.add(Or(variables[m][j] + int(self.tasks[m,j]) <= variables[m][other_j], variables[m][other_j] + int(self.tasks[m,other_j]) <= variables[m][j]))
+                    s_add(Or(variables[m][j] + int(self.tasks[m,j]) <= variables[m][other_j], variables[m][other_j] + int(self.tasks[m,other_j]) <= variables[m][j]))
 
                     if debug and printClauses:
                         print(Or(variables[m][j] + int(self.tasks[m,j]) <= variables[m][other_j], variables[m][other_j] + int(self.tasks[m,other_j]) <= variables[m][j]))
 
         c = Int('c')
-        for m in range(self.machines):
-            for j in range(self.jobs):
-                s.add(variables[m][j] + int(self.tasks[m,j]) <= c)
+        for j in range(self.jobs):
+            for m in range(self.machines):
+            #m = self.machines - 1
+            #while m > -1 and self.tasks[m, j] == 0:
+            #    m -= 1
+            #if m < 0:
+            #    continue
+
+                s_add(variables[m][j] + int(self.tasks[m,j]) <= c)
                 if debug and printClauses:
                     print(variables[m][j] + int(self.tasks[m,j]) <= c)
 
+        s.add(int(self.min_timestep) <= c)
+        s.add(int(self.max_timestep) >= c)
+        if debug and printClauses:
+            print(self.min_timestep, '<=', c, '<=', self.max_timestep)
+
+
         s.minimize(c)
 
+        if debug:
+            print("Solving...")
         s.check()
         model = s.model()
 
         self.parse_model(model)
         self.output(model)
 
-
+        if debug and printClauses:
+            print(s.statistics())
 
 
     def output(self, model):
@@ -192,7 +206,8 @@ class JobFlowProblem:
         max_t = 0
         for m in range(self.machines):
             for j in range(self.jobs):
-                max_t = max(max_t, parsed_model[m][j] + self.tasks[m,j])
+                if self.tasks[m,j] != 0:
+                    max_t = max(max_t, parsed_model[m][j] + self.tasks[m,j])
         return max_t
 
 
