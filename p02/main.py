@@ -128,7 +128,7 @@ class JobFlowProblem:
                 for other_j in range(j+1, self.jobs):
                     if self.tasks[m,j] == 0 or self.tasks[m,other_j] == 0:
                         continue
-                    s_add(Or(variables[m][j] + int(self.tasks[m,j]) <= variables[m][other_j], variables[m][other_j] + int(self.tasks[m,other_j]) <= variables[m][j]))
+                    s_add(Xor(variables[m][j] + int(self.tasks[m,j]) <= variables[m][other_j], variables[m][other_j] + int(self.tasks[m,other_j]) <= variables[m][j]))
 
                     if debug and printClauses:
                         print(Or(variables[m][j] + int(self.tasks[m,j]) <= variables[m][other_j], variables[m][other_j] + int(self.tasks[m,other_j]) <= variables[m][j]))
