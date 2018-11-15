@@ -78,6 +78,7 @@ class JobFlowProblem:
                         who_lst[i] = job_index
     
     def generate_formula(self):
+
         if debug:
             print("Generating formulation...")
 
@@ -94,11 +95,21 @@ class JobFlowProblem:
         
         for j in range(self.jobs):
 
+            # OS TEMPOS TẼM DE SER POSITIVOS 
+            m = 0
+            while m < self.machines and self.tasks[m,j] == 0:
+                m += 1
+            if m >= self.machines:
+                continue
+            s_add(variables[m][j] >= 0)
+            if debug and printClauses:
+                print(variables[m][j], '>= 0')
+
             # AS TAREFAS DE UM JOB TÊM DE SER EXECUTADAS POR ORDEM
-            for m in range(self.machines - 1): 
+            for m in range(self.machines): 
                 while m < self.machines and self.tasks[m, j] == 0:
                     m += 1
-                if m >= self.machines - 1:
+                if m >= self.machines:
                     break
 
                 other_m = m + 1
@@ -111,18 +122,6 @@ class JobFlowProblem:
 
                 if debug and printClauses:
                     print(variables[m][j] + int(self.tasks[m, j]), '<=', variables[m + 1][j])
-
-            # OS TEMPOS TẼM DE SER POSITIVOS 
-            m = 0
-            while m < self.machines and self.tasks[m,j] == 0:
-                m += 1
-
-            if m >= self.machines:
-                continue
-
-            s_add(variables[m][j] >= 0)
-            if debug and printClauses:
-                print(variables[m][j], '>= 0')
 
             # PARA CADA PARA DE TAREFAS OU UMA ACONTECE ANTES OU A OUTRA
             for m in range(self.machines):
@@ -137,12 +136,6 @@ class JobFlowProblem:
         c = Int('c')
         for j in range(self.jobs):
             for m in range(self.machines):
-            #m = self.machines - 1
-            #while m > -1 and self.tasks[m, j] == 0:
-            #    m -= 1
-            #if m < 0:
-            #    continue
-
                 s_add(variables[m][j] + int(self.tasks[m,j]) <= c)
                 if debug and printClauses:
                     print(variables[m][j] + int(self.tasks[m,j]) <= c)
@@ -151,7 +144,6 @@ class JobFlowProblem:
         s.add(int(self.max_timestep) >= c)
         if debug and printClauses:
             print(self.min_timestep, '<=', c, '<=', self.max_timestep)
-
 
         s.minimize(c)
 
