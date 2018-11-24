@@ -49,26 +49,35 @@ class JobFlowProblem:
     def generate_formula(self):
         data = ''
         
-        data += 'upper_bound = ' + str(self.max_timestep) + ';'
-        data += 'm = ' + str(self.machines) + ';'
-        data += 'j =' + str(self.jobs) + ';'
+        data += 'lower_bound=' + str(self.min_timestep) + ';'
+        data += 'upper_bound=' + str(self.max_timestep) + ';'
+        data += 'machines=' + str(self.machines) + ';'
+        data += 'jobs=' + str(self.jobs) + ';'
         
-        data += 'tasks = ['
+        data += 'tasks=['
         for m in range(self.machines):
             data += '|'
             for j in range(self.jobs):
                 data += str(self.tasks[m,j]) + ','
 
-        data += '|]'
+        data += '|];'
+
+        data += 'tasks_not_zero=['
+        for j in range(self.jobs):
+            data += str((self.tasks[:,j] > 0).sum()) + ','
+        data += '];'
 
         if debug:
             print(data)
         
-        ps = subprocess.Popen(('minizinc', 'jfp.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+        if debug: 
+            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', '--verbose-solving', 'jfp_2.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+        else:
+            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', 'jfp_2.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         output, _ = ps.communicate(data)
-
-        if debug:
-            print(output)
+            
+        print(output)
+        return
 
         result = []
         for line in output.split('\n'):
