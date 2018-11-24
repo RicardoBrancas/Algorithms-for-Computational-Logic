@@ -1,7 +1,9 @@
-#!/usr/local/bin/python3
+#!/usr/bin/python3
+import subprocess
 import argparse
 import numpy as np
 import sys
+import ast
 
 debug = False
 printClauses = False
@@ -14,38 +16,6 @@ class JobFlowProblem:
         self.jobs = j
         self.tasks = tasks
         self.min_timestep, self.max_timestep = self.greedy_span()
-        self.top = self.var_id(self.machines-1, self.jobs-1, self.max_timestep) + 1
-
-
-    def __str__(self):
-        sm = ""
-        for j in range(self.jobs):
-            for i in range(self.machines):
-                sm += " " + str(self.tasks[i, j])
-            sm += "\n"
-        return sm
-
-
-    def var_id(self, m, job, time):
-        return m * self.jobs * self.max_timestep + job * self.max_timestep + time + 1
-
-
-    def id_var(self, var_id):
-        var_id = var_id - 1
-        t = var_id % self.max_timestep
-        var_id -= t
-        j = (var_id % (self.jobs * self.max_timestep)) // self.max_timestep
-        var_id -= j * self.max_timestep
-        m = var_id // (self.jobs * self.max_timestep)
-        return m, j, t
-
-
-    def update_top(self, cnf):
-        max_lit = 0
-        for clause in cnf.clauses:
-            for lit in clause:
-                max_lit = max(max_lit, abs(lit))
-        self.top = max(self.top, max_lit)
 
 
     def greedy_span(self):
@@ -77,86 +47,75 @@ class JobFlowProblem:
                         who_lst[i] = job_index
     
     def generate_formula(self):
-
-        variables = []
-
-   
-        # CREATE VARIABLES
+        data = ''
+        
+        data += 'upper_bound = ' + str(self.max_timestep) + ';'
+        data += 'm = ' + str(self.machines) + ';'
+        data += 'j =' + str(self.jobs) + ';'
+        
+        data += 'tasks = ['
         for m in range(self.machines):
-            variables.append([])
+            data += '|'
             for j in range(self.jobs):
-                variables[m].append([])
-                for t in range(self.tasks[m,j]):
-                    variables[m][j].append('t' + str(j+1) + '_' + str(m+1) + "_" + str(t))
-                    print("var 0.." + str(self.max_timestep) + ": " + variables[m][j][t] + ";")
-      
+                data += str(self.tasks[m,j]) + ','
+
+        data += '|]'
+
+        if debug:
+            print(data)
+        
+        ps = subprocess.Popen(('minizinc', 'jfp.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+        output, _ = ps.communicate(data)
+
+        if debug:
+            print(output)
+
+        result = []
+        for line in output.split('\n'):
+            if len(line) > 0 and line[0] == '[':
+                result.append(ast.literal_eval(line))
+
+        result = np.array(result)
+
+        self.output(result)
 
 
     def output(self, model):
-        if model == None:
-            print("UNSAT")
-
-        result = self.parse_model(model)
-
-        if debug and printClauses:
-            self.print_model(result)
+        result = model
 
         print(self.makespan(result))
         print(self.jobs, self.machines)
 
         for j in range(self.jobs):
-            print((result[:, j] >= 0).sum(), end=' ')
+            print((self.tasks[:,j] > 0).sum(), end=' ')
             for m in range(self.machines):
-                if self.tasks[m,j] != 0 and result[m][j] != -1:
-                    print(str(m + 1) + ':' + str(result[m][j]), end=' ')
+                last_was_j = False
+                count = 0
+                for t in range(self.max_timestep):
+                    if not last_was_j and result[m,t]-1 == j:
+                        print(str(m+1) + ':' + str(t) + ':',end='')
+                        last_was_j = True
+                        count += 1
+                    elif last_was_j and result[m,t]-1 == j:
+                        count += 1
+                    elif last_was_j and result[m,t]-1 != j:
+                        print(str(count),end=' ')
+                        last_was_j = False
+                        count = 0
+                if last_was_j == True:
+                    print(str(count),end=' ')
+
             print()
 
-
-    def parse_model(self, model):
-        result = np.full((self.machines, self.jobs), -1, dtype=int)
-        
-        for var in model:
-            if str(var) == 'c':
-                continue
-            j, m = map(int, str(var)[1:].split(','))
-            if self.tasks[m-1, j-1] != 0:
-                result[m-1][j-1] = model[var].as_long()
-            else:
-                result[m-1][j-1] = -1
-
-        return result
 
 
     def makespan(self, parsed_model):
         max_t = 0
         for m in range(self.machines):
-            for j in range(self.jobs):
-                if self.tasks[m,j] != 0:
-                    max_t = max(max_t, parsed_model[m][j] + self.tasks[m,j])
-        return max_t
-
-
-    def print_model(self, parsed_model):
-        out = np.zeros((self.machines, self.max_timestep), dtype=int)
-
-        for m in range(self.machines):
-            for j in range(self.jobs):
-                for t in range(parsed_model[m][j], parsed_model[m][j] + self.tasks[m][j]):
-                    out[m][t] = j + 1
-
-        for m in range(self.machines):
-            print("m" + '{0:02d}'.format(m + 1) + " ", end='')
             for t in range(self.max_timestep):
-                if out[m][t] != 0:
-                    print('j' + '{0:02d}'.format(out[m][t]), end=' ')
-                else:
-                    print("    ", end='')
-            print()
-
-        print("t   ", end='')
-        for t in range(self.max_timestep):
-            print('{0:03d} '.format(t), end='')
-        print()
+                if parsed_model[m,t] != 0:
+                    max_t = max(max_t, t+1)
+        return max_t
 
 
 parser = argparse.ArgumentParser(description='A SAT based solver for the Job Flow Scheduling Problem.')
@@ -182,5 +141,4 @@ for job in range(0, j):
         tasks[machine - 1, job] = duration
 
 problem = JobFlowProblem(m, j, tasks)
-
 problem.generate_formula()
