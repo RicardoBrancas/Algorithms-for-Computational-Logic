@@ -16,6 +16,7 @@ class JobFlowProblem:
         self.jobs = j
         self.tasks = tasks
         self.min_timestep, self.max_timestep = self.greedy_span()
+        self.next = self.baguette();
 
 
     def greedy_span(self):
@@ -45,6 +46,23 @@ class JobFlowProblem:
                     if lst[i] == 0 and (jobs[job_index][i] > 0) and np.sum(jobs[job_index][:i]) == 0:
                         lst[i] = jobs[job_index][i]
                         who_lst[i] = job_index
+
+    def baguette(self): 
+        for j in range(self.jobs):
+            for m in range(self.machines):
+                m1 = m + 1
+
+                while m1 < self.machines and self.tasks[m1, j] == 0:
+                    m1 += 1
+                if m1 >= self.machines:
+                    break
+
+                other_m = m + 1
+                while other_m < self.machines and self.tasks[other_m, j] == 0:
+                    other_m += 1
+                if other_m >= self.machines:
+                    break
+
     
     def generate_formula(self):
         data = ''
@@ -66,6 +84,15 @@ class JobFlowProblem:
         for j in range(self.jobs):
             data += str((self.tasks[:,j] > 0).sum()) + ','
         data += '];'
+
+
+        data += 'next=['
+        for m in range(self.machines):
+            data += '|'
+            for j in range(self.jobs):
+                data += str(self.next[m,j]) + ','
+        data += '|];'
+
 
         if debug:
             print(data)
