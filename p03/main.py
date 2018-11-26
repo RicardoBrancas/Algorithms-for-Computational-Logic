@@ -95,12 +95,12 @@ class JobFlowProblem:
             print(data)
         
         if debug: 
-            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', '--verbose-solving', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+            ps = subprocess.Popen(('/Applications/MiniZincIDE.app/Contents/Resources/minizinc', '--search-complete-msg', '', '--soln-sep', '', '--verbose-solving', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         else:
-            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+            ps = subprocess.Popen(('/Applications/MiniZincIDE.app/Contents/Resources/minizinc', '--search-complete-msg', '', '--soln-sep', '', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         output, _ = ps.communicate(data)
             
-        print(output)
+        self.parse_it(output)
         return
 
         result = []
@@ -149,6 +149,53 @@ class JobFlowProblem:
                 if parsed_model[m,t] != 0:
                     max_t = max(max_t, t+1)
         return max_t
+
+
+    def parse_it(self, string):
+        tmp = string.split("\n")
+        print(tmp[0])
+        print(tmp[1])
+
+        tmp = tmp[2:]
+        #print(len(tmp))
+
+        for j in range(self.jobs):
+            concat = ""
+            for m in range(self.machines):
+                cur = tmp[m][1:len(tmp[m])-1].replace(" ", "").split(",")
+                cur = cur + [0]
+                start = 0
+                acc = 0
+                for t in range(len(cur)-1):
+                    if int(cur[t]) + 1 == int(cur[t+1]):
+                        acc += 1
+                        if start == 0:
+                            start = cur[t]
+
+                       # if int(cur[t+2]) != int(cur[t+1]) + 1
+
+                    elif not start == 0:
+                        concat += str(m+1) + ":" + str(start) + ":" + str(acc)
+                        start = cur[t]
+                    
+                    
+                   
+
+            print(concat)
+
+            tmp = tmp[self.machines+1:]
+        #for j in range(len(tmp)-2):
+        #    lst = tmp[0][1:len(tmp[0])-1].replace(" ", "").split(",")
+            # print(lst)
+        #    for i in range(len(lst)):
+        #        out = str(i+1) + ":" + str(lst[i]) 
+        #        if int(lst[i]) > 0:
+        #            print(out, end=" ")
+        #    tmp = tmp[1:]
+        #    print()
+
+        return
+
 
 
 parser = argparse.ArgumentParser(description='A SAT based solver for the Job Flow Scheduling Problem.')
