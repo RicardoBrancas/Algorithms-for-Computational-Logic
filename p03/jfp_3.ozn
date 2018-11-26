@@ -1,0 +1,6 @@
+output ([show(c)++"\n"]++[((show(jobs)++" ")++show(machines))++"\n"])++[show(T)];
+int: machines = 3;
+int: jobs = 2;
+array [1..machines,1..jobs] of int: tasks = [|2,1|1,6|4,1|];
+int: c;
+array [1..machines+1,1..jobs,0..max(tasks)] of int: T;

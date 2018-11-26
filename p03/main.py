@@ -48,20 +48,17 @@ class JobFlowProblem:
                         who_lst[i] = job_index
 
     def baguette(self): 
+        X = np.zeros((self.machines-1, self.jobs), dtype=int)
+
         for j in range(self.jobs):
-            for m in range(self.machines):
+            for m in range(self.machines-1):
                 m1 = m + 1
 
                 while m1 < self.machines and self.tasks[m1, j] == 0:
                     m1 += 1
-                if m1 >= self.machines:
-                    break
+                X[m,j] = m1
 
-                other_m = m + 1
-                while other_m < self.machines and self.tasks[other_m, j] == 0:
-                    other_m += 1
-                if other_m >= self.machines:
-                    break
+        return X
 
     
     def generate_formula(self):
@@ -87,10 +84,10 @@ class JobFlowProblem:
 
 
         data += 'next=['
-        for m in range(self.machines):
+        for m in range(self.machines-1):
             data += '|'
             for j in range(self.jobs):
-                data += str(self.next[m,j]) + ','
+                data += str(self.next[m,j]+1) + ','
         data += '|];'
 
 
@@ -98,9 +95,9 @@ class JobFlowProblem:
             print(data)
         
         if debug: 
-            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', '--verbose-solving', 'jfp_2.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', '--verbose-solving', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         else:
-            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', 'jfp_2.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         output, _ = ps.communicate(data)
             
         print(output)
