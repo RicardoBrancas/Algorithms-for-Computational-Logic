@@ -159,29 +159,43 @@ class JobFlowProblem:
         tmp = tmp[2:]
         #print(len(tmp))
 
+        concat = {}
         for j in range(self.jobs):
-            concat = ""
+            concat[j] = {}
             for m in range(self.machines):
-                cur = tmp[m][1:len(tmp[m])-1].replace(" ", "").split(",")
-                cur = cur + [0]
-                start = 0
-                acc = 0
-                for t in range(len(cur)-1):
-                    if int(cur[t]) + 1 == int(cur[t+1]):
-                        acc += 1
-                        if start == 0:
-                            start = cur[t]
+                cur = tmp[m][1:len(tmp[m])-1].replace(" ", "").split(",")  
+                concat[j][m] = {}
+                #print(cur)
+                for el in cur:
+                    done = False
+                    if int(el) == 0:
+                        continue
 
-                       # if int(cur[t+2]) != int(cur[t+1]) + 1
+                    for key in concat[j][m].keys():
+                        if int(el) == concat[j][m][key] + key:
+                            concat[j][m][key] += 1
+                            done = True
 
-                    elif not start == 0:
-                        concat += str(m+1) + ":" + str(start) + ":" + str(acc)
-                        start = cur[t]
+                    if not done:
+                        concat[j][m][int(el)] = 1
+                        
+                #for t in range(len(cur)-1):
+                #    if int(cur[t]) + 1 == int(cur[t+1]):
+                #        acc += 1
+                #        if start == 0:
+                #            start = cur[t]
+
+                #       # if int(cur[t+2]) != int(cur[t+1]) + 1
+
+                #    elif not start == 0:
+                #        concat += str(m+1) + ":" + str(start) + ":" + str(acc)
+                #        start = cur[t]
                     
                     
                    
 
-            print(concat)
+           # print(concat[j])
+
 
             tmp = tmp[self.machines+1:]
         #for j in range(len(tmp)-2):
@@ -193,7 +207,12 @@ class JobFlowProblem:
         #            print(out, end=" ")
         #    tmp = tmp[1:]
         #    print()
-
+        
+        for j in range(self.jobs):
+            for m in range(self.machines):
+                for key in concat[j][m].keys():
+                    print(str(m+1) + ":" + str(key) + ":" + str(concat[j][m][key]), end = " ")
+            print()
         return
 
 
