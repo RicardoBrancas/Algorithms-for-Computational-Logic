@@ -210,7 +210,8 @@ class JobFlowProblem:
         
         for j in range(self.jobs):
             for m in range(self.machines):
-                for key in concat[j][m].keys():
+                #print(concat[j][m].keys(), "l")
+                for key in sorted(list(concat[j][m].keys())):
                     print(str(m+1) + ":" + str(key) + ":" + str(concat[j][m][key]), end = " ")
             print()
         return
