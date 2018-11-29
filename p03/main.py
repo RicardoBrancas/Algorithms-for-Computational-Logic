@@ -16,7 +16,7 @@ class JobFlowProblem:
         self.jobs = j
         self.tasks = tasks
         self.min_timestep, self.max_timestep = self.greedy_span()
-        self.next = self.baguette();
+        self.next = self.compute_next();
 
 
     def greedy_span(self):
@@ -47,7 +47,7 @@ class JobFlowProblem:
                         lst[i] = jobs[job_index][i]
                         who_lst[i] = job_index
 
-    def baguette(self): 
+    def compute_next(self): 
         X = np.zeros((self.machines-1, self.jobs), dtype=int)
 
         for j in range(self.jobs):
@@ -95,23 +95,13 @@ class JobFlowProblem:
             print(data)
         
         if debug: 
-            ps = subprocess.Popen(('/Applications/MiniZincIDE.app/Contents/Resources/minizinc', '--search-complete-msg', '', '--soln-sep', '', '--verbose-solving', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', '--verbose-solving', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         else:
-            ps = subprocess.Popen(('/Applications/MiniZincIDE.app/Contents/Resources/minizinc', '--search-complete-msg', '', '--soln-sep', '', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+            ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         output, _ = ps.communicate(data)
             
         self.parse_it(output)
         return
-
-        result = []
-        for line in output.split('\n'):
-            if len(line) > 0 and line[0] == '[':
-                result.append(ast.literal_eval(line))
-
-        result = np.array(result)
-
-        self.output(result)
-
 
     def output(self, model):
         result = model
@@ -157,7 +147,6 @@ class JobFlowProblem:
         print(tmp[1])
 
         tmp = tmp[2:]
-        #print(len(tmp))
 
         concat = {}
         for j in range(self.jobs):
@@ -165,7 +154,6 @@ class JobFlowProblem:
             for m in range(self.machines):
                 cur = tmp[m][1:len(tmp[m])-1].replace(" ", "").split(",")  
                 concat[j][m] = {}
-                #print(cur)
                 for el in cur:
                     done = False
                     if int(el) == 0:
@@ -178,41 +166,14 @@ class JobFlowProblem:
 
                     if not done:
                         concat[j][m][int(el)] = 1
-                        
-                #for t in range(len(cur)-1):
-                #    if int(cur[t]) + 1 == int(cur[t+1]):
-                #        acc += 1
-                #        if start == 0:
-                #            start = cur[t]
-
-                #       # if int(cur[t+2]) != int(cur[t+1]) + 1
-
-                #    elif not start == 0:
-                #        concat += str(m+1) + ":" + str(start) + ":" + str(acc)
-                #        start = cur[t]
-                    
-                    
-                   
-
-           # print(concat[j])
-
 
             tmp = tmp[self.machines+1:]
-        #for j in range(len(tmp)-2):
-        #    lst = tmp[0][1:len(tmp[0])-1].replace(" ", "").split(",")
-            # print(lst)
-        #    for i in range(len(lst)):
-        #        out = str(i+1) + ":" + str(lst[i]) 
-        #        if int(lst[i]) > 0:
-        #            print(out, end=" ")
-        #    tmp = tmp[1:]
-        #    print()
         
         for j in range(self.jobs):
+            print(len(concat[j].keys()),end=" ")
             for m in range(self.machines):
-                #print(concat[j][m].keys(), "l")
                 for key in sorted(list(concat[j][m].keys())):
-                    print(str(m+1) + ":" + str(key) + ":" + str(concat[j][m][key]), end = " ")
+                    print(str(m+1) + ":" + str(key-1) + ":" + str(concat[j][m][key]), end = " ")
             print()
         return
 

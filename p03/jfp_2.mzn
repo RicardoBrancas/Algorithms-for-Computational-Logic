@@ -5,11 +5,12 @@ int: upper_bound;
 int: machines;
 int: jobs;
 array [1..machines, 1..jobs] of int: tasks;
+array [1..machines-1, 1..jobs] of int: next;
 array [1..jobs] of int: tasks_not_zero;
 
 var lower_bound..upper_bound: c;
-array [1..machines, 1..jobs, 0..max(tasks)] of var -1..upper_bound: T;
-array [1..machines, 1..jobs, 0..max(tasks)] of var 0..max(tasks): D;
+array [1..machines+1, 1..jobs, 0..max(tasks)] of var -1..upper_bound: T;
+array [1..machines+1, 1..jobs, 0..max(tasks)] of var 0..max(tasks): D;
 
 constraint forall(m in 1..machines) (
               forall(j in 1..jobs) (
@@ -39,14 +40,14 @@ constraint forall(m in 1..machines) (
               disjunctive_strict(array1d(T[m,..,..]), array1d(D[m,..,..]))
           );
           
-constraint forall(m in 2..machines) (
+constraint forall(m in 1..machines-1) (
               forall(j in 1..jobs) (
                 ((tasks[m,j] = 0) -> (T[m,j,0] = -1))
                 /\
                 forall (t in 0..max(tasks)) (
-                  forall(m1 in 1..m-1) (
-                    (tasks[m,j] != 0) -> (T[m,j,0] >= T[m1,j,t] + D[m1,j,t])
-                  )
+                  %forall(m1 in m+1..machines) (
+                    (tasks[next[m,j],j] != 0) -> (T[next[m,j],j,0] >= T[m,j,t] + D[m,j,t])
+                  %)
                 )
               )
           );
