@@ -7,7 +7,6 @@ int: machines;
 int: jobs;
 array [1..machines, 1..jobs] of int: tasks;
 array [1..machines-1, 1..jobs] of int: next;
-array [1..jobs] of int: tasks_not_zero;
 
 var lower_bound..upper_bound: c;
 array [1..machines+1, 1..jobs, 1..max(tasks)] of var 0..upper_bound+1: T;
@@ -51,7 +50,9 @@ constraint forall(j in 1..jobs) (
 );
 
 
-solve minimize c;
+solve ::int_search([c], largest, indomain_split)
+      %::int_search(array1d(T), smallest, indomain_split)
+	   minimize c;
 
 output [show(c) ++ "\n"];
 output [show(jobs) ++ " " ++ show(machines) ++ "\n"];

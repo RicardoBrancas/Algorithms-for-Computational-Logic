@@ -77,19 +77,12 @@ class JobFlowProblem:
 
         data += '|];'
 
-        data += 'tasks_not_zero=['
-        for j in range(self.jobs):
-            data += str((self.tasks[:,j] > 0).sum()) + ','
-        data += '];'
-
-
         data += 'next=['
         for m in range(self.machines-1):
             data += '|'
             for j in range(self.jobs):
                 data += str(self.next[m,j]+1) + ','
         data += '|];'
-
 
         if debug:
             print(data)
@@ -99,7 +92,10 @@ class JobFlowProblem:
         else:
             ps = subprocess.Popen(('minizinc', '--search-complete-msg', '', '--soln-sep', '', 'jfp_3.mzn', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         output, _ = ps.communicate(data)
-            
+        
+        if debug and printClauses:
+            print(output)
+
         self.parse_it(output)
         return
 
