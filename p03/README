@@ -1,0 +1,52 @@
+/******************************************************************************/
+/*                       Terceiro Projeto da UC de ALC                        */
+/*                  Job-Flow Scheduling Problem with CSP                      */
+/******************************************************************************/
+Grupo 3
+81620 Daniel Ramos
+83557 Ricardo Brancas
+
+/******************************************************************************/
+/*                               Como executar                                */
+/******************************************************************************/
+
+O executável é o ficheiro main.py (Python 3) e pode ser chamado diretamente.
+A única dependênica do python é o NumPy.
+É necessário ter o executável do minizinc no path.
+
+É ainda possível obter informação sobre o que está a acontecer utilizando '-v' 
+ou '-vv'.
+
+Para ver todas as opções utilizar '-h'.
+
+/******************************************************************************/
+/*                              A Nossa Solução                               */
+/******************************************************************************/
+
+Para resolver o problema estamos a usar o Minizinc.
+
+As nossas variáveis são do tipo T[i,j,d] em que i é o número de uma máquina, j 
+é o número de um job, e d é um pedaço da tarefa T[i,j]. Cada variável 
+identifica o timestep em que o pedaço d da tarefa T[i,j] é executada
+
+Existe ainda uma variável auxiliar utilizada para fazer a minimização do
+makespan.
+
+Ao modelo mzn são passados vários parâmetros pre-calculados. Entre os quais:
+
+	- next[m,j] que indica qual é a próxima máquina do job j
+	- lowerbound que indica a duração minima possível
+	- upperbound que indica a duração de uma solução greedy
+
+
+A nossa formulação consiste em 2 tipos de restrições:
+
+ - Os tempos têm de ser diferentes para cada subtarefa que corre na m
+   máquina T[m, .., ..]
+
+ - Os tempos de todas as subtarefas de um job são sequenciais
+   T[m, j, d] < T[m, j, d+1] < T[m, j, d+2] < ... < T[m+1, j, k] <  T[m+1, j, k+1] 
+
+Por fim, adicionamos restrições para que todos os X[i,j] tenham de ser menores
+que a nossa variável auxiliar e excolhemos essa variável como função de
+minimização.
