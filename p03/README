@@ -50,3 +50,6 @@ A nossa formulação consiste em 2 tipos de restrições:
 Por fim, adicionamos restrições para que todos os X[i,j] tenham de ser menores
 que a nossa variável auxiliar e excolhemos essa variável como função de
 minimização.
+
+Utilizamos ainda uma anotação para que a pesquisa sobre a variável de 
+minimização seja binária.

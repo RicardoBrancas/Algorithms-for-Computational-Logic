@@ -99,34 +99,6 @@ class JobFlowProblem:
         self.parse_it(output)
         return
 
-    def output(self, model):
-        result = model
-
-        print(self.makespan(result))
-        print(self.jobs, self.machines)
-
-        for j in range(self.jobs):
-            print((self.tasks[:,j] > 0).sum(), end=' ')
-            for m in range(self.machines):
-                last_was_j = False
-                count = 0
-                for t in range(self.max_timestep):
-                    if not last_was_j and result[m,t]-1 == j:
-                        print(str(m+1) + ':' + str(t) + ':',end='')
-                        last_was_j = True
-                        count += 1
-                    elif last_was_j and result[m,t]-1 == j:
-                        count += 1
-                    elif last_was_j and result[m,t]-1 != j:
-                        print(str(count),end=' ')
-                        last_was_j = False
-                        count = 0
-                if last_was_j == True:
-                    print(str(count),end=' ')
-
-            print()
-
-
 
     def makespan(self, parsed_model):
         max_t = 0
@@ -175,7 +147,7 @@ class JobFlowProblem:
 
 
 
-parser = argparse.ArgumentParser(description='A SAT based solver for the Job Flow Scheduling Problem.')
+parser = argparse.ArgumentParser(description='A CSP based solver for the Job Flow Scheduling Problem.')
 parser.add_argument('--verbose', '-v', action='count')
 
 args = parser.parse_args()
