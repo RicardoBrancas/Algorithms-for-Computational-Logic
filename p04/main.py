@@ -65,7 +65,10 @@ class JobFlowProblem:
     def generate_formula(self):
         data = ''
         
-        #data += 'lower_bound=' + str(self.min_timestep) + ';'
+        data += 'timestep(1..' + str(self.max_timestep-1) + ').'
+
+        data += 'lowerbound(' + str(self.min_timestep) + ').'
+        data += 'upperbound(' + str(self.max_timestep) + ').'
         #data += 'upper_bound=' + str(self.max_timestep) + ';'
         #data += 'machines=' + str(self.machines) + ';'
         #data += 'jobs=' + str(self.jobs) + ';'
