@@ -69,6 +69,7 @@ class JobFlowProblem:
 
         data += '#const lowerbound = ' + str(self.min_timestep) + '.'
         data += '#const upperbound = ' + str(self.max_timestep) + '.'
+        data += '#const maxdur = ' + str(np.max(self.tasks)) + '.'
         #data += 'upper_bound=' + str(self.max_timestep) + ';'
         #data += 'machines=' + str(self.machines) + ';'
         #data += 'jobs=' + str(self.jobs) + ';'

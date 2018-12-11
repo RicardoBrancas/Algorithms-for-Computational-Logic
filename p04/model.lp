@@ -37,13 +37,14 @@ used(T) :- exec(_, _, _, T).
    T1 = T2,
    1 {J1 != J2; D1 != D2}.
 
-:- exec(J1, M, D1, T1),
-   exec(J2, M, D2, T2),
-   exec(J1, M, D3, T3),
-   exec(j2, M, D4, T4),
-   J1 != J2,
-   T1 < T2, T2 < T3, T3 < T4.
+%:- exec(J1, M, D1, T1),
+%   exec(J2, M, D2, T2),
+%   exec(J1, M, D3, T3),
+%   exec(J2, M, D4, T4),
+%   J1 != J2,
+%   T1 < T2, T2 < T3, T3 < T4.
 
 #minimize { T : used(T) }.
-#heuristic exec(J, M, D, T) : subtask(J, M, D), timestep(T). [upperbound-T+1,factor]
+#heuristic exec(J, M, D, T) : subtask(J, M, D), timestep(T). [upperbound-T+1,level]
+#heuristic exec(J, M, D, T) : subtask(J, M, D), timestep(T). [1,sign]
 #show exec/4.
