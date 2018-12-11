@@ -67,26 +67,29 @@ class JobFlowProblem:
         
         data += 'timestep(1..' + str(self.max_timestep-1) + ').'
 
-        data += 'lowerbound(' + str(self.min_timestep) + ').'
-        data += 'upperbound(' + str(self.max_timestep) + ').'
+        data += '#const lowerbound = ' + str(self.min_timestep) + '.'
+        data += '#const upperbound = ' + str(self.max_timestep) + '.'
         #data += 'upper_bound=' + str(self.max_timestep) + ';'
         #data += 'machines=' + str(self.machines) + ';'
         #data += 'jobs=' + str(self.jobs) + ';'
         
-        #data += 'tasks=['
+        data += 'dur('
         for m in range(self.machines):
             for j in range(self.jobs):
-                data += 'dur(' + str(j+1) + ',' + str(m+1) + ',' + str(self.tasks[m,j]) + ').'
+                data += str(j+1) + ',' + str(m+1) + ',' + str(self.tasks[m,j]) + ';'
+        data += ').'
 
 
+        data += 'next('
         for m in range(self.machines-1):
             for j in range(self.jobs):
-                data += 'next(' + str(j+1) + ',' + str(m+1) + ',' + str(self.next[m,j]+1) + ').'
+                data += str(j+1) + ',' + str(m+1) + ',' + str(self.next[m,j]+1) + ';'
+        data += ').'
 
         if debug:
             print(data)
         
-        ps = subprocess.Popen(('clingo', '--outf=1', 'model.lp', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
+        ps = subprocess.Popen(('clingo', '--outf=1', '--configuration=trendy', '--heuristic=Domain', 'model.lp', '-'), stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8')
         output, _ = ps.communicate(data)
         
         if debug and printClauses:
@@ -126,6 +129,8 @@ class JobFlowProblem:
         for j in range(self.jobs):
             print(self.machines, end=' ')
             for m in range(self.machines):
+                if self.tasks[m,j] == 0:
+                    continue
                 last = -1
                 count = 0
                 start = 0
