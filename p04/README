@@ -1,0 +1,58 @@
+/******************************************************************************/
+/*                       Quarto Projeto da UC de ALC                          */
+/*                  Job-Flow Scheduling Problem with ASP                      */
+/******************************************************************************/
+Grupo 2
+81620 Daniel Ramos
+83557 Ricardo Brancas
+
+/******************************************************************************/
+/*                               Como executar                                */
+/******************************************************************************/
+
+O executável é o ficheiro main.py (Python 3) e pode ser chamado diretamente.
+A única dependênica do python é o NumPy.
+É necessário ter o executável do clingo no path.
+
+É ainda possível obter informação sobre o que está a acontecer utilizando '-v' 
+ou '-vv'.
+
+Para ver todas as opções utilizar '-h'.
+
+/******************************************************************************/
+/*                              A Nossa Solução                               */
+/******************************************************************************/
+
+Para resolver o problema estamos a usar o clingo.
+
+O input consiste em predicados dos tipos:
+
+  - timestep(T).
+    indica que T é um possível timestep.
+
+  - dur(J, M, D).
+    indicam que a task M do job J tem uma duração D.
+
+  - next(J, M1, M2).
+    indicam que a próxima tarefa com duração não nula após a tarefa M1 do 
+    job J é a tarefa M2 do job J.
+
+  Existem ainda duas constantes, lowerbound e upperbound.
+
+No nosso modelo usamos os seguintes predicados:
+
+  - task(J, M).
+    representa a tarefa M do job J.
+
+  - subtask(J, M, D).
+    indica que D é um pedaço (unitário) da task(J, M).
+
+  - exec(J, M, D, T).
+    indica que a subtask(J, M, D) é executada no timestep(T).
+
+  - next(J, M1, T1, M2, T2)
+    indica que a próxima subtarefa após a subtask(J, M1, T1)
+    é subtask(J, M2, T2).
+
+  - used(T).
+    indica que o timestep(T) está a ser utilizado.

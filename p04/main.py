@@ -3,7 +3,6 @@ import subprocess
 import argparse
 import numpy as np
 import sys
-import ast
 import re
 
 debug = False
@@ -48,6 +47,7 @@ class JobFlowProblem:
                         lst[i] = jobs[job_index][i]
                         who_lst[i] = job_index
 
+
     def compute_next(self): 
         X = np.zeros((self.machines-1, self.jobs), dtype=int)
 
@@ -69,17 +69,12 @@ class JobFlowProblem:
 
         data += '#const lowerbound = ' + str(self.min_timestep) + '.'
         data += '#const upperbound = ' + str(self.max_timestep) + '.'
-        data += '#const maxdur = ' + str(np.max(self.tasks)) + '.'
-        #data += 'upper_bound=' + str(self.max_timestep) + ';'
-        #data += 'machines=' + str(self.machines) + ';'
-        #data += 'jobs=' + str(self.jobs) + ';'
         
         data += 'dur('
         for m in range(self.machines):
             for j in range(self.jobs):
                 data += str(j+1) + ',' + str(m+1) + ',' + str(self.tasks[m,j]) + ';'
         data += ').'
-
 
         data += 'next('
         for m in range(self.machines-1):
@@ -98,15 +93,6 @@ class JobFlowProblem:
 
         self.parse_it(output)
         return
-
-
-    def makespan(self, parsed_model):
-        max_t = 0
-        for m in range(self.machines):
-            for t in range(self.max_timestep):
-                if parsed_model[m,t] != 0:
-                    max_t = max(max_t, t+1)
-        return max_t
 
 
     def parse_it(self, string):
@@ -148,6 +134,7 @@ class JobFlowProblem:
                 print(m+1, start, count, sep=':', end=' ')
 
             print()
+
 
 parser = argparse.ArgumentParser(description='A ASP based solver for the Job Flow Scheduling Problem.')
 parser.add_argument('--verbose', '-v', action='count')
