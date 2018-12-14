@@ -114,7 +114,7 @@ class JobFlowProblem:
             print(sch)
 
         for j in range(self.jobs):
-            print(self.machines, end=' ')
+            print(np.count_nonzero(self.tasks[:,j]), end=' ')
             for m in range(self.machines):
                 if self.tasks[m,j] == 0:
                     continue
